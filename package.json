@@ -12,6 +12,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
     "@solana/web3.js": "^1.98.2",
+    "@tailwindcss/postcss": "^4.1.10",
     "@tanstack/react-query": "^5.81.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
