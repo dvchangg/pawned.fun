@@ -1,115 +1,84 @@
-import React, { useState, useEffect } from "react";
-import { Chess } from "chess.js";
+import { useState } from 'react';
+import type { Game, GameMove } from '../../../shared/schema';
 
 interface ChessBoardProps {
-  fen: string;
-  onMove?: (move: string) => void;
-  playerColor?: "white" | "black";
-  disabled?: boolean;
+  game: Game;
+  moves: GameMove[];
 }
 
-export function ChessBoard({ fen, onMove, playerColor = "white", disabled = false }: ChessBoardProps) {
-  const [chess] = useState(() => new Chess(fen));
+export function ChessBoard({ game, moves }: ChessBoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
-  const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
 
-  useEffect(() => {
-    chess.load(fen);
-  }, [fen, chess]);
+  // Simple chess board representation
+  const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
+
+  // Initial piece positions
+  const initialPieces: Record<string, string> = {
+    'a8': '♜', 'b8': '♞', 'c8': '♝', 'd8': '♛', 'e8': '♚', 'f8': '♝', 'g8': '♞', 'h8': '♜',
+    'a7': '♟', 'b7': '♟', 'c7': '♟', 'd7': '♟', 'e7': '♟', 'f7': '♟', 'g7': '♟', 'h7': '♟',
+    'a2': '♙', 'b2': '♙', 'c2': '♙', 'd2': '♙', 'e2': '♙', 'f2': '♙', 'g2': '♙', 'h2': '♙',
+    'a1': '♖', 'b1': '♘', 'c1': '♗', 'd1': '♕', 'e1': '♔', 'f1': '♗', 'g1': '♘', 'h1': '♖',
+  };
 
   const handleSquareClick = (square: string) => {
-    if (disabled) return;
-
-    if (selectedSquare) {
-      // Try to make a move
-      const move = chess.move({
-        from: selectedSquare,
-        to: square,
-        promotion: 'q' // Auto-promote to queen for simplicity
-      });
-
-      if (move) {
-        onMove?.(move.san);
-        setSelectedSquare(null);
-        setPossibleMoves([]);
-      } else {
-        // Select new piece if valid
-        const moves = chess.moves({ square: square as any, verbose: true });
-        if (moves.length > 0) {
-          setSelectedSquare(square);
-          setPossibleMoves(moves.map(m => m.to));
-        } else {
-          setSelectedSquare(null);
-          setPossibleMoves([]);
-        }
-      }
-    } else {
-      // Select piece
-      const moves = chess.moves({ square: square as any, verbose: true });
-      if (moves.length > 0) {
-        setSelectedSquare(square);
-        setPossibleMoves(moves.map(m => m.to));
-      }
-    }
+    if (game.status !== 'active') return;
+    setSelectedSquare(selectedSquare === square ? null : square);
   };
-
-  const renderSquare = (square: string, piece: any) => {
-    const isLight = (square.charCodeAt(0) + parseInt(square[1])) % 2 === 0;
-    const isSelected = selectedSquare === square;
-    const isPossibleMove = possibleMoves.includes(square);
-    
-    return (
-      <div
-        key={square}
-        className={`
-          w-12 h-12 flex items-center justify-center cursor-pointer text-2xl
-          ${isLight ? 'bg-amber-100 dark:bg-amber-200' : 'bg-amber-800 dark:bg-amber-900'}
-          ${isSelected ? 'ring-4 ring-blue-500' : ''}
-          ${isPossibleMove ? 'ring-2 ring-green-500' : ''}
-          hover:opacity-80 transition-all
-        `}
-        onClick={() => handleSquareClick(square)}
-      >
-        {piece && (
-          <span className="text-black dark:text-white">
-            {getPieceSymbol(piece)}
-          </span>
-        )}
-      </div>
-    );
-  };
-
-  const board = chess.board();
-  const squares: React.ReactElement[] = [];
-
-  // Render board based on player color
-  const files = playerColor === "white" ? "abcdefgh" : "hgfedcba";
-  const ranks = playerColor === "white" ? "87654321" : "12345678";
-
-  for (const rank of ranks) {
-    for (const file of files) {
-      const square = file + rank;
-      const piece = board[8 - parseInt(rank)][files.indexOf(file)];
-      squares.push(renderSquare(square, piece));
-    }
-  }
 
   return (
-    <div className="inline-block p-4 bg-amber-900 rounded-lg shadow-lg">
-      <div className="grid grid-cols-8 gap-0 border-2 border-amber-700">
-        {squares}
+    <div className="flex flex-col items-center space-y-4">
+      <div className="grid grid-cols-8 gap-0 border-2 border-gray-600 rounded-lg overflow-hidden">
+        {ranks.map((rank) =>
+          files.map((file) => {
+            const square = file + rank;
+            const isLight = (files.indexOf(file) + ranks.indexOf(rank)) % 2 === 0;
+            const isSelected = selectedSquare === square;
+            const piece = initialPieces[square];
+
+            return (
+              <div
+                key={square}
+                onClick={() => handleSquareClick(square)}
+                className={`
+                  w-12 h-12 flex items-center justify-center text-2xl cursor-pointer relative
+                  ${isLight ? 'bg-amber-100' : 'bg-amber-800'}
+                  ${isSelected ? 'ring-4 ring-blue-400' : ''}
+                  hover:bg-opacity-80 transition-colors
+                `}
+              >
+                {piece && (
+                  <span className="select-none">
+                    {piece}
+                  </span>
+                )}
+                <div className="absolute bottom-0 left-0 text-xs text-gray-600 leading-none">
+                  {square}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
+
+      {/* Move history */}
+      {moves.length > 0 && (
+        <div className="w-full max-w-md bg-white/10 backdrop-blur-sm rounded-lg p-4">
+          <h4 className="text-white font-medium mb-2">Move History</h4>
+          <div className="max-h-32 overflow-y-auto space-y-1">
+            {moves.map((move) => (
+              <div key={move.id} className="flex justify-between text-sm">
+                <span className="text-gray-300">
+                  {move.moveNumber}. {move.move}
+                </span>
+                <span className="text-gray-400">
+                  {Math.floor(move.timeLeft / 60)}:{(move.timeLeft % 60).toString().padStart(2, '0')}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
-}
-
-function getPieceSymbol(piece: any): string {
-  if (!piece) return "";
-  
-  const symbols = {
-    'wk': '♔', 'wq': '♕', 'wr': '♖', 'wb': '♗', 'wn': '♘', 'wp': '♙',
-    'bk': '♚', 'bq': '♛', 'br': '♜', 'bb': '♝', 'bn': '♞', 'bp': '♟'
-  };
-  
-  return symbols[`${piece.color}${piece.type}` as keyof typeof symbols] || "";
 }

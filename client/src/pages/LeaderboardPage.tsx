@@ -1,166 +1,139 @@
-import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "../lib/queryClient";
-import { Button } from "../components/ui/button";
-import { Trophy, Medal, Award, TrendingUp } from "lucide-react";
-import { LeaderboardEntry, User } from "../../../shared/schema";
-
-type LeaderboardCategory = "elo" | "games_played" | "win_rate" | "total_wagered";
+import { useQuery } from '@tanstack/react-query';
+import { Trophy, Crown, Star, TrendingUp } from 'lucide-react';
 
 export function LeaderboardPage() {
-  const [selectedCategory, setSelectedCategory] = useState<LeaderboardCategory>("elo");
-
-  const { data: leaderboard = [], isLoading } = useQuery({
-    queryKey: ["/api/leaderboard", selectedCategory],
-    queryFn: () => apiRequest(`/api/leaderboard/${selectedCategory}?limit=100`),
+  const { data: topPlayers, isLoading } = useQuery({
+    queryKey: ['/api/leaderboard/elo'],
+    queryFn: () => fetch('/api/leaderboard/elo?limit=20').then(res => res.json()),
   });
 
-  const categories = [
-    { key: "elo" as const, label: "ELO Rating", icon: Trophy },
-    { key: "games_played" as const, label: "Games Played", icon: TrendingUp },
-    { key: "win_rate" as const, label: "Win Rate", icon: Award },
-    { key: "total_wagered" as const, label: "Total Wagered", icon: Medal },
-  ];
-
-  const getRankIcon = (rank: number) => {
-    if (rank === 1) return "🥇";
-    if (rank === 2) return "🥈";
-    if (rank === 3) return "🥉";
-    return `#${rank}`;
-  };
-
-  const formatValue = (value: string, category: LeaderboardCategory) => {
-    const num = parseFloat(value);
-    switch (category) {
-      case "elo":
-        return Math.round(num).toString();
-      case "games_played":
-        return Math.round(num).toString();
-      case "win_rate":
-        return `${num.toFixed(1)}%`;
-      case "total_wagered":
-        return `${num.toFixed(4)} SOL`;
-      default:
-        return value;
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Leaderboard</h1>
-        <p className="text-white/70">Compete with the best chess players on Solana</p>
-      </div>
-
-      {/* Category Selector */}
-      <div className="flex flex-wrap justify-center gap-3">
-        {categories.map(({ key, label, icon: Icon }) => (
-          <Button
-            key={key}
-            variant={selectedCategory === key ? "default" : "outline"}
-            onClick={() => setSelectedCategory(key)}
-            className="flex items-center space-x-2"
-          >
-            <Icon className="w-4 h-4" />
-            <span>{label}</span>
-          </Button>
-        ))}
-      </div>
-
-      {/* Leaderboard */}
-      <div className="bg-white/10 backdrop-blur-sm rounded-lg overflow-hidden">
-        <div className="p-6 border-b border-white/20">
-          <h2 className="text-2xl font-semibold flex items-center space-x-2">
-            {(() => {
-              const category = categories.find(c => c.key === selectedCategory);
-              const Icon = category?.icon;
-              return Icon ? <Icon className="w-6 h-6" /> : null;
-            })()}
-            <span>{categories.find(c => c.key === selectedCategory)?.label}</span>
-          </h2>
+    <div className="space-y-8">
+      <div className="text-center text-white">
+        <div className="flex justify-center mb-6">
+          <Trophy className="w-16 h-16 text-yellow-400" />
         </div>
+        <h1 className="text-4xl font-bold mb-4">Leaderboard</h1>
+        <p className="text-xl text-gray-300">
+          Top players ranked by ELO rating
+        </p>
+      </div>
 
-        <div className="divide-y divide-white/10">
-          {isLoading ? (
-            <div className="p-8 text-center">
-              <p className="text-white/70">Loading leaderboard...</p>
-            </div>
-          ) : leaderboard.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-white/70">No players found</p>
-            </div>
-          ) : (
-            leaderboard.map((entry: LeaderboardEntry & { user: User }) => (
+      {/* Top 3 Players */}
+      {topPlayers && topPlayers.length >= 3 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          {topPlayers.slice(0, 3).map((player: any, index: number) => {
+            const position = index + 1;
+            const icons = [Crown, Trophy, Star];
+            const colors = ['text-yellow-400', 'text-gray-400', 'text-amber-600'];
+            const bgColors = ['bg-yellow-400/10', 'bg-gray-400/10', 'bg-amber-600/10'];
+            const Icon = icons[index];
+
+            return (
               <div
-                key={entry.id}
-                className={`p-4 flex items-center justify-between hover:bg-white/5 transition-colors ${
-                  entry.rank <= 3 ? "bg-gradient-to-r from-yellow-500/10 to-transparent" : ""
-                }`}
+                key={player.id}
+                className={`${bgColors[index]} backdrop-blur-sm rounded-lg p-6 border border-white/10 text-center`}
               >
-                <div className="flex items-center space-x-4">
-                  <div className="text-2xl font-bold w-16 text-center">
-                    {getRankIcon(entry.rank)}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">
-                      {entry.user?.username || "Anonymous"}
-                    </h3>
-                    <div className="flex items-center space-x-4 text-sm text-white/70">
-                      <span>ELO: {entry.user?.eloRating || 1200}</span>
-                      <span>Games: {entry.user?.totalGames || 0}</span>
-                      <span>
-                        W/L: {entry.user?.wins || 0}/{entry.user?.losses || 0}
-                      </span>
-                    </div>
-                  </div>
+                <Icon className={`w-12 h-12 ${colors[index]} mx-auto mb-4`} />
+                <div className="text-3xl font-bold text-white mb-2">#{position}</div>
+                <div className="text-lg font-semibold text-white mb-2">
+                  {player.username}
                 </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold">
-                    {formatValue(entry.value, selectedCategory)}
-                  </div>
+                <div className="text-2xl font-bold text-yellow-400 mb-2">
+                  {player.eloRating}
+                </div>
+                <div className="text-sm text-gray-300">
+                  {player.totalGames} games • {player.wins}W {player.losses}L {player.draws}D
                 </div>
               </div>
-            ))
-          )}
+            );
+          })}
         </div>
-      </div>
+      )}
 
-      {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center">
-          <Trophy className="w-6 h-6 mx-auto mb-2 text-yellow-400" />
-          <div className="text-2xl font-bold">{leaderboard.length}</div>
-          <div className="text-sm text-white/70">Total Players</div>
-        </div>
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center">
-          <TrendingUp className="w-6 h-6 mx-auto mb-2 text-blue-400" />
-          <div className="text-2xl font-bold">
-            {leaderboard.reduce((sum: number, entry: any) => 
-              sum + (entry.user?.totalGames || 0), 0
-            )}
+      {/* Full Leaderboard */}
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/10 overflow-hidden">
+          <div className="px-6 py-4 border-b border-white/10">
+            <h2 className="text-xl font-semibold text-white flex items-center">
+              <TrendingUp className="w-5 h-5 mr-2" />
+              Full Rankings
+            </h2>
           </div>
-          <div className="text-sm text-white/70">Total Games</div>
-        </div>
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center">
-          <Award className="w-6 h-6 mx-auto mb-2 text-green-400" />
-          <div className="text-2xl font-bold">
-            {leaderboard.length > 0 ? Math.round(
-              leaderboard.reduce((sum: number, entry: any) => 
-                sum + (entry.user?.eloRating || 1200), 0
-              ) / leaderboard.length
-            ) : 1200}
+          
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-white/5">
+                <tr className="text-left">
+                  <th className="px-6 py-3 text-gray-300 font-medium">Rank</th>
+                  <th className="px-6 py-3 text-gray-300 font-medium">Player</th>
+                  <th className="px-6 py-3 text-gray-300 font-medium">ELO</th>
+                  <th className="px-6 py-3 text-gray-300 font-medium">Games</th>
+                  <th className="px-6 py-3 text-gray-300 font-medium">W/L/D</th>
+                  <th className="px-6 py-3 text-gray-300 font-medium">Win Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {topPlayers?.map((player: any, index: number) => {
+                  const winRate = player.totalGames > 0 
+                    ? ((player.wins / player.totalGames) * 100).toFixed(1)
+                    : '0.0';
+
+                  return (
+                    <tr key={player.id} className="hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          <span className="text-white font-medium">#{index + 1}</span>
+                          {index < 3 && (
+                            <Crown className="w-4 h-4 text-yellow-400 ml-2" />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-white font-medium">{player.username}</div>
+                        <div className="text-sm text-gray-400">ID: {player.id}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-yellow-400 font-bold text-lg">
+                          {player.eloRating}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-white">
+                        {player.totalGames}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm">
+                          <span className="text-green-400">{player.wins}W</span>
+                          <span className="text-red-400 ml-1">{player.losses}L</span>
+                          <span className="text-gray-400 ml-1">{player.draws}D</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-white">
+                        {winRate}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <div className="text-sm text-white/70">Avg ELO</div>
         </div>
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center">
-          <Medal className="w-6 h-6 mx-auto mb-2 text-purple-400" />
-          <div className="text-2xl font-bold">
-            {leaderboard.reduce((sum: number, entry: any) => 
-              sum + parseFloat(entry.user?.totalWagered || "0"), 0
-            ).toFixed(2)}
+
+        {(!topPlayers || topPlayers.length === 0) && (
+          <div className="text-center py-12">
+            <Trophy className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-white mb-2">No Players Yet</h3>
+            <p className="text-gray-400">Be the first to play and claim the top spot!</p>
           </div>
-          <div className="text-sm text-white/70">Total SOL Wagered</div>
-        </div>
+        )}
       </div>
     </div>
   );
