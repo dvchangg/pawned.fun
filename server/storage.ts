@@ -1,4 +1,6 @@
-import { User, Game, GameMove, LeaderboardEntry, InsertUser, InsertGame, InsertGameMove, InsertLeaderboardEntry } from "../shared/schema.js";
+import { User, Game, GameMove, LeaderboardEntry, InsertUser, InsertGame, InsertGameMove, InsertLeaderboardEntry, users, games, gameMoves, leaderboardEntries } from "../shared/schema.js";
+import { db } from "./db.js";
+import { eq, or, desc, asc } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -219,3 +221,148 @@ export class MemStorage implements IStorage {
     });
   }
 }
+
+export class DatabaseStorage implements IStorage {
+  private generateId(): string {
+    return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
+    const id = this.generateId();
+    const [user] = await db
+      .insert(users)
+      .values({
+        id,
+        ...userData,
+        avatar: userData.avatar || null,
+        eloRating: userData.eloRating || 1200,
+        totalGames: userData.totalGames || 0,
+        wins: userData.wins || 0,
+        losses: userData.losses || 0,
+        draws: userData.draws || 0,
+        totalWagered: userData.totalWagered || "0",
+        totalWon: userData.totalWon || "0",
+      })
+      .returning();
+    return user;
+  }
+
+  async getUserByWallet(walletAddress: string): Promise<User | null> {
+    const [user] = await db.select().from(users).where(eq(users.walletAddress, walletAddress));
+    return user || null;
+  }
+
+  async getUserById(id: string): Promise<User | null> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || null;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async createGame(gameData: InsertGame): Promise<Game> {
+    const id = this.generateId();
+    const [game] = await db
+      .insert(games)
+      .values({
+        id,
+        ...gameData,
+        blackPlayerId: gameData.blackPlayerId || null,
+        status: gameData.status || "waiting",
+        result: gameData.result || "ongoing",
+        pgn: gameData.pgn || "",
+        currentFen: gameData.currentFen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        wagerAmount: gameData.wagerAmount || "0",
+        wagerToken: gameData.wagerToken || "SOL",
+        isWagered: gameData.isWagered || false,
+        timeControl: gameData.timeControl || 600,
+        whiteTimeLeft: gameData.whiteTimeLeft || 600,
+        blackTimeLeft: gameData.blackTimeLeft || 600,
+      })
+      .returning();
+    return game;
+  }
+
+  async getGameById(id: string): Promise<Game | null> {
+    const [game] = await db.select().from(games).where(eq(games.id, id));
+    return game || null;
+  }
+
+  async updateGame(id: string, updates: Partial<Game>): Promise<Game> {
+    const [game] = await db
+      .update(games)
+      .set(updates)
+      .where(eq(games.id, id))
+      .returning();
+    return game;
+  }
+
+  async getGamesByPlayer(playerId: string): Promise<Game[]> {
+    return await db
+      .select()
+      .from(games)
+      .where(or(eq(games.whitePlayerId, playerId), eq(games.blackPlayerId, playerId)));
+  }
+
+  async getActiveGames(): Promise<Game[]> {
+    return await db.select().from(games).where(eq(games.status, "active"));
+  }
+
+  async getWaitingGames(): Promise<Game[]> {
+    return await db.select().from(games).where(eq(games.status, "waiting"));
+  }
+
+  async createGameMove(moveData: InsertGameMove): Promise<GameMove> {
+    const id = this.generateId();
+    const [move] = await db
+      .insert(gameMoves)
+      .values({
+        id,
+        ...moveData,
+      })
+      .returning();
+    return move;
+  }
+
+  async getGameMoves(gameId: string): Promise<GameMove[]> {
+    return await db
+      .select()
+      .from(gameMoves)
+      .where(eq(gameMoves.gameId, gameId))
+      .orderBy(asc(gameMoves.moveNumber));
+  }
+
+  async updateLeaderboard(entry: InsertLeaderboardEntry): Promise<LeaderboardEntry> {
+    const id = this.generateId();
+    const [leaderboardEntry] = await db
+      .insert(leaderboardEntries)
+      .values({
+        id,
+        ...entry,
+        rank: entry.rank || 0,
+      })
+      .returning();
+    return leaderboardEntry;
+  }
+
+  async getLeaderboard(category: "elo" | "games_played" | "win_rate" | "total_wagered", limit = 100): Promise<LeaderboardEntry[]> {
+    return await db
+      .select()
+      .from(leaderboardEntries)
+      .where(eq(leaderboardEntries.category, category))
+      .orderBy(asc(leaderboardEntries.rank))
+      .limit(limit);
+  }
+}
+
+export const storage = new DatabaseStorage();

@@ -1,13 +1,10 @@
 import express from "express";
 import cors from "cors";
 import { createRoutes } from "./routes.js";
-import { MemStorage } from "./storage.js";
+import { storage } from "./storage.js";
 
 const app = express();
 const port = process.env.PORT || 3001;
-
-// Initialize storage
-const storage = new MemStorage();
 
 // Middleware
 app.use(cors());
